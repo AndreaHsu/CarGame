@@ -7,3 +7,8 @@
     - Uncheck `Auto Capture`: Manually press `p` to take a screenshot
     - `FolderName`: Set the screenshot should be saved in where, the defualt path is `the project path\FolderName\` 
     ![Alt text](image.png)
+3. Restart \
+    You should set the tag of the object, the car will automatically detect whether there are `collision` or `out of bound`.
+    - OutOfBound
+    - Road
+    - Obticle
