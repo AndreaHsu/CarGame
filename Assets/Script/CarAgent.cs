@@ -10,6 +10,7 @@ public class CarAgent : Agent
 {
     public Rigidbody rBody;
     public float forceMultiplier = 20;
+    public float rotationMultiplier = 100;
     public Transform endLine;
     private Vector3 initialPos;
     private float preDistance;
@@ -41,31 +42,48 @@ public class CarAgent : Agent
         // Agent velocity
         sensor.AddObservation(rBody.velocity.x);
         sensor.AddObservation(rBody.velocity.z);
+
+        // Agent rotation (in degrees)
+        sensor.AddObservation(transform.eulerAngles.y);
     }
 
     public override void OnActionReceived(ActionBuffers actionBuffers)
     {
-        // Actions, size = 2
-        Vector3 controlSignal = Vector3.zero;
-        controlSignal.x = actionBuffers.ContinuousActions[0];
-        controlSignal.z = actionBuffers.ContinuousActions[1];
-        rBody.AddForce(controlSignal * forceMultiplier);
+        // Actions, size = 3 (forward, backward, rotation)
+        float forwardSignal = actionBuffers.ContinuousActions[0];
+        float rotationSignal = actionBuffers.ContinuousActions[1];
+        float brakeSignal = actionBuffers.ContinuousActions[2];
+
+        // Move Forward the car
+        rBody.AddForce(transform.forward * forwardSignal * forceMultiplier);
+        // Brake the car
+        if (brakeSignal > 0)
+        {
+            Vector3 brakeForce = -rBody.velocity.normalized * brakeSignal * forceMultiplier;
+            rBody.AddForce(brakeForce);
+        }
+        // Rotate the car
+        transform.Rotate(Vector3.up * rotationSignal * rotationMultiplier * Time.deltaTime);
 
         // Rewards
         float distanceToEnd = Vector3.Distance(this.transform.localPosition, endLine.localPosition);
 
         // Dead
-        if(transform.localPosition.y < 0.0f){
+        if(transform.localPosition.y < 0.0f)
+        {
             EndEpisode();
-        }else{
+        }else
+        {
             // if move closer
-            if(distanceToEnd < preDistance){
+            if(distanceToEnd < preDistance)
+            {
                 preDistance = distanceToEnd;
                 SetReward(0.1f);
             }
             // if stay on the spot
-            else{
-                SetReward(-0.1f);
+            else
+            {
+                SetReward(-0.05f);
             }
         }
         // Reached target
@@ -86,8 +104,9 @@ public class CarAgent : Agent
     public override void Heuristic(in ActionBuffers actionsOut)
     {
         var continuousActionsOut = actionsOut.ContinuousActions;
-        continuousActionsOut[0] = Input.GetAxis("Horizontal");
-        continuousActionsOut[1] = Input.GetAxis("Vertical");
+        continuousActionsOut[0] = Input.GetAxis("Vertical");  // Forward/Backward
+        continuousActionsOut[1] = Input.GetAxis("Horizontal");  // Rotation
+        continuousActionsOut[2] = Input.GetKey(KeyCode.Space) ? 1.0f : 0.0f; // Brake
     }
 
     void OnTriggerEnter(Collider other)
