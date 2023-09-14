@@ -9,10 +9,12 @@ using Unity.MLAgents.Policies;
 public class CarAgent : Agent
 {
     public Rigidbody rBody;
+    public Camera cam;
     public float forceMultiplier = 20;
     public float rotationMultiplier = 100;
     public Transform endLine;
     private Vector3 initialPos;
+    private Quaternion initalAng;
     private float preDistance;
     private float totalDistance;
 
@@ -21,6 +23,7 @@ public class CarAgent : Agent
     {
         rBody = GetComponent<Rigidbody>();
         initialPos =  transform.position;
+        initalAng = transform.rotation;
         preDistance = Vector3.Distance(transform.localPosition, endLine.localPosition);
         totalDistance = preDistance;
     }
@@ -28,6 +31,7 @@ public class CarAgent : Agent
     public override void OnEpisodeBegin()
     {
         transform.position = initialPos;
+        transform.rotation = initalAng;
         rBody.angularVelocity = Vector3.zero;
         rBody.velocity = Vector3.zero;
         preDistance = Vector3.Distance(transform.localPosition, endLine.localPosition);
@@ -49,19 +53,20 @@ public class CarAgent : Agent
 
     public override void OnActionReceived(ActionBuffers actionBuffers)
     {
-        // Actions, size = 3 (forward, backward, rotation)
+        // Actions, size = 3 (forward, rotation, brake)
         float forwardSignal = actionBuffers.ContinuousActions[0];
         float rotationSignal = actionBuffers.ContinuousActions[1];
-        float brakeSignal = actionBuffers.ContinuousActions[2];
+        // float brakeSignal = actionBuffers.ContinuousActions[2];
 
         // Move Forward the car
         rBody.AddForce(transform.forward * forwardSignal * forceMultiplier);
         // Brake the car
-        if (brakeSignal > 0)
-        {
-            Vector3 brakeForce = -rBody.velocity.normalized * brakeSignal * forceMultiplier;
-            rBody.AddForce(brakeForce);
-        }
+        // if (brakeSignal > 0)
+        // {
+        //     Vector3 brakeForce = -rBody.velocity.normalized * brakeSignal * forceMultiplier;
+        //     rBody.AddForce(brakeForce);
+        // }
+        
         // Rotate the car
         transform.Rotate(Vector3.up * rotationSignal * rotationMultiplier * Time.deltaTime);
 
@@ -71,6 +76,8 @@ public class CarAgent : Agent
         // Dead
         if(transform.localPosition.y < 0.0f)
         {
+            print("OutOfBound(Falling)");
+            SetReward(-50.0f);
             EndEpisode();
         }else
         {
@@ -78,17 +85,22 @@ public class CarAgent : Agent
             if(distanceToEnd < preDistance)
             {
                 preDistance = distanceToEnd;
-                SetReward(0.1f);
+                // print("Rotate");
+                // print(rotationSignal);
+                // print("Forward");
+                // print(forwardSignal);
+                SetReward(0.5f);
             }
             // if stay on the spot
             else
             {
-                SetReward(-0.05f);
+                SetReward(-0.1f);
             }
         }
         // Reached target
-        if(distanceToEnd <= 0.0f)
+        if(distanceToEnd <= 0.5f)
         {   
+            print("Win");
             SetReward(100.0f);
             EndEpisode();
         }
@@ -106,14 +118,14 @@ public class CarAgent : Agent
         var continuousActionsOut = actionsOut.ContinuousActions;
         continuousActionsOut[0] = Input.GetAxis("Vertical");  // Forward/Backward
         continuousActionsOut[1] = Input.GetAxis("Horizontal");  // Rotation
-        continuousActionsOut[2] = Input.GetKey(KeyCode.Space) ? 1.0f : 0.0f; // Brake
+        // continuousActionsOut[2] = Input.GetKey(KeyCode.Space) ? 1.0f : 0.0f; // Brake
     }
 
     void OnTriggerEnter(Collider other)
     {
         if(other.tag == "outofbound"){
             print("OutOfBound");
-            SetReward(-5.0f);
+            SetReward(-50.0f);
             EndEpisode();
         }
     }
@@ -122,7 +134,7 @@ public class CarAgent : Agent
     {
         if(other.gameObject.tag == "obticle"){
             print("collide with a obticle");
-            SetReward(-10.0f);
+            SetReward(-50.0f);
             EndEpisode();
         }
     }
