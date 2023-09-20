@@ -5,6 +5,7 @@ using Unity.MLAgents;
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Policies;
+using System.Linq;
 
 public class CarAgent : Agent
 {
@@ -16,7 +17,34 @@ public class CarAgent : Agent
     private Vector3 initialPos;
     private Quaternion initalAng;
     private float preDistance;
-    private float totalDistance;
+    private float lastEpisodeDistance;
+    private float distanceToEnd;
+
+    [System.Serializable]
+    public class RewardAssignment
+	{
+		[Tooltip("Reward when agent arrives the goal")]
+		public float Arrival    = 5.0f;
+		[Tooltip("Reward when agent collides with objects")]
+		public float Collision  = -5.0f;
+		[Tooltip("Reward when agent runs out off the track")]
+		public float OffTrack   = -5.0f;
+		[Tooltip("Survival reward")]
+		public float Survival   = 0.01f;
+        [Tooltip("Stay at one spot reward")]
+		public float Stay  = -0.02f;
+		[Tooltip("Time limit exceeded reward")]
+		public float TimeLimit  = -5.0f;
+	}
+
+    [Header("Various settings")]
+    // Reward
+    public RewardAssignment rewardAssignment;
+    public RewardAssignment Rewards
+    {
+        get => rewardAssignment;
+        set => rewardAssignment = value;
+    }
 
     // Start is called before the first frame update
     void Start()
@@ -24,8 +52,8 @@ public class CarAgent : Agent
         rBody = GetComponent<Rigidbody>();
         initialPos =  transform.position;
         initalAng = transform.rotation;
-        preDistance = Vector3.Distance(transform.localPosition, endLine.localPosition);
-        totalDistance = preDistance;
+        preDistance = Vector3.Distance(transform.position, endLine.position);
+        lastEpisodeDistance = preDistance;
     }
 
     public override void OnEpisodeBegin()
@@ -34,14 +62,14 @@ public class CarAgent : Agent
         transform.rotation = initalAng;
         rBody.angularVelocity = Vector3.zero;
         rBody.velocity = Vector3.zero;
-        preDistance = Vector3.Distance(transform.localPosition, endLine.localPosition);
+        preDistance = Vector3.Distance(transform.position, endLine.position);
     }
 
     public override void CollectObservations(VectorSensor sensor)
     {   
         // Target and Agent positions
-        sensor.AddObservation(transform.localPosition);
-        sensor.AddObservation(endLine.localPosition);
+        sensor.AddObservation(transform.position);
+        sensor.AddObservation(endLine.position);
 
         // Agent velocity
         sensor.AddObservation(rBody.velocity.x);
@@ -71,13 +99,13 @@ public class CarAgent : Agent
         transform.Rotate(Vector3.up * rotationSignal * rotationMultiplier * Time.deltaTime);
 
         // Rewards
-        float distanceToEnd = Vector3.Distance(this.transform.localPosition, endLine.localPosition);
-
+        distanceToEnd = Vector3.Distance(this.transform.position, endLine.position);
+        // print(distanceToEnd);
         // Dead
-        if(transform.localPosition.y < 0.0f)
+        if(transform.position.y < -2.0f)
         {
             print("OutOfBound(Falling)");
-            SetReward(-50.0f);
+            SetReward(Rewards.OffTrack);
             EndEpisode();
         }else
         {
@@ -85,23 +113,21 @@ public class CarAgent : Agent
             if(distanceToEnd < preDistance)
             {
                 preDistance = distanceToEnd;
-                // print("Rotate");
-                // print(rotationSignal);
-                // print("Forward");
-                // print(forwardSignal);
-                SetReward(0.5f);
+                SetReward(Rewards.Survival);
             }
             // if stay on the spot
             else
             {
-                SetReward(-0.1f);
+                SetReward(Rewards.Stay);
             }
         }
+        // print(distanceToEnd);
         // Reached target
-        if(distanceToEnd <= 0.5f)
+        if(distanceToEnd <= 0.12f)
         {   
             print("Win");
-            SetReward(100.0f);
+            print(distanceToEnd);
+            SetReward(Rewards.Arrival);
             EndEpisode();
         }
     }
@@ -125,7 +151,7 @@ public class CarAgent : Agent
     {
         if(other.tag == "outofbound"){
             print("OutOfBound");
-            SetReward(-50.0f);
+            SetReward(Rewards.OffTrack);
             EndEpisode();
         }
     }
@@ -134,7 +160,7 @@ public class CarAgent : Agent
     {
         if(other.gameObject.tag == "obticle"){
             print("collide with a obticle");
-            SetReward(-50.0f);
+            SetReward(Rewards.Collision);
             EndEpisode();
         }
     }
